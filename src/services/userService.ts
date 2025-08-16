@@ -1,6 +1,13 @@
 import { User, IUser, UserRole } from '../models/User';
 import { AppError } from '../utils/AppError';
 
+/**
+ * Helper function to safely get user ID as string
+ */
+function getUserId(user: IUser): string {
+  return user._id.toString();
+}
+
 export interface UserQueryParams {
   page?: number;
   limit?: number;
@@ -107,7 +114,7 @@ export class UserService {
     }
 
     return {
-      id: user._id.toString(),
+      id: getUserId(user),
       username: user.username,
       email: user.email,
       firstName: user.firstName,
@@ -133,7 +140,7 @@ export class UserService {
     }
 
     return {
-      id: user._id.toString(),
+      id: getUserId(user),
       username: user.username,
       email: user.email,
       firstName: user.firstName,
@@ -249,7 +256,7 @@ export class UserService {
       .sort({ createdAt: -1 });
 
     return users.map(user => ({
-      id: user._id.toString(),
+      id: getUserId(user),
       username: user.username,
       email: user.email,
       firstName: user.firstName,

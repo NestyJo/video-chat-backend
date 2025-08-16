@@ -22,7 +22,10 @@
     "seed:clear": "node scripts/seed.js --clear --samples",
     "seed:help": "node scripts/seed.js --help",
     "test:api": "node scripts/test-api.js",
-    "test:api:bash": "bash scripts/test-api.sh"
+    "test:api:bash": "bash scripts/test-api.sh",
+    "fix-admin": "node scripts/quick-admin-fix.js",
+    "test-login": "node scripts/test-login.js",
+    "verify-setup": "node scripts/verify-setup.js"
   },
   "keywords": [
     "nodejs",

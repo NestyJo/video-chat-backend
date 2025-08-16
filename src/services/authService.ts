@@ -2,6 +2,13 @@ import { User, IUser, UserRole } from '../models/User';
 import { AppError } from '../utils/AppError';
 import { generateToken, TokenPayload } from '../utils/jwt';
 
+/**
+ * Helper function to safely get user ID as string
+ */
+function getUserId(user: IUser): string {
+  return user._id.toString();
+}
+
 export interface RegisterUserData {
   username: string;
   email: string;
@@ -70,13 +77,13 @@ export class AuthService {
 
     // Generate JWT token
     const token = generateToken({
-      userId: user._id.toString(),
+      userId: getUserId(user),
       email: user.email,
     });
 
     return {
       user: {
-        id: user._id.toString(),
+        id: getUserId(user),
         username: user.username,
         email: user.email,
         firstName: user.firstName,
@@ -119,13 +126,13 @@ export class AuthService {
 
     // Generate JWT token
     const token = generateToken({
-      userId: user._id.toString(),
+      userId: getUserId(user),
       email: user.email,
     });
 
     return {
       user: {
-        id: user._id.toString(),
+        id: getUserId(user),
         username: user.username,
         email: user.email,
         firstName: user.firstName,

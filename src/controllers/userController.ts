@@ -1,6 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { UserService, UserQueryParams } from '../services/userService';
 import { AppError } from '../utils/AppError';
+import { IUser } from '../models/User';
+
+/**
+ * Helper function to safely get user ID as string
+ */
+function getUserId(user: IUser): string {
+  return user._id.toString();
+}
 
 export const getAllUsers = async (
   req: Request,
@@ -82,7 +90,7 @@ export const deactivateUser = async (
       throw new AppError('Authentication required', 401);
     }
     
-    await UserService.deactivateUser(id, currentUser._id.toString());
+    await UserService.deactivateUser(id, getUserId(currentUser));
     
     res.status(200).json({
       success: true,

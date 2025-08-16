@@ -1,6 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService, RegisterUserData, UpdateUserData } from '../services/authService';
 import { AppError } from '../utils/AppError';
+import { IUser } from '../models/User';
+
+/**
+ * Helper function to safely get user ID as string
+ */
+function getUserId(user: IUser): string {
+  return user._id.toString();
+}
 
 export const register = async (
   req: Request,
@@ -63,13 +71,13 @@ export const getProfile = async (
       throw new AppError('Authentication required', 401);
     }
     
-    const userProfile = await AuthService.getUserProfile(user._id.toString());
+    const userProfile = await AuthService.getUserProfile(getUserId(user));
     
     res.status(200).json({
       success: true,
       data: {
         user: {
-          id: userProfile._id,
+          id: getUserId(userProfile),
           username: userProfile.username,
           email: userProfile.email,
           firstName: userProfile.firstName,
@@ -108,7 +116,7 @@ export const updateProfile = async (
     };
     
     const updatedUser = await AuthService.updateUserProfile(
-      user._id.toString(),
+      getUserId(user),
       updateData
     );
     
@@ -117,7 +125,7 @@ export const updateProfile = async (
       message: 'Profile updated successfully',
       data: {
         user: {
-          id: updatedUser._id,
+          id: getUserId(updatedUser),
           username: updatedUser.username,
           email: updatedUser.email,
           firstName: updatedUser.firstName,

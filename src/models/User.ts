@@ -1,4 +1,4 @@
-import mongoose, { Document, Schema } from 'mongoose';
+import mongoose, { Document, Schema, Types } from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 /**
@@ -20,6 +20,8 @@ function transformUserOutput(doc: any, ret: Record<string, any>): Record<string,
  * User document interface extending Mongoose Document
  */
 export interface IUser extends Document {
+  /** MongoDB ObjectId */
+  _id: Types.ObjectId;
   /** Unique username for the user */
   username: string;
   /** User's email address (unique) */
