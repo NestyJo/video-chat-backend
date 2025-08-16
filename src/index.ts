@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 
 import { connectMySQL, getSequelize } from './config/mysql';
 import { initUserModel } from './models/User';
+import { initMeetingModel } from './models/Meeting';
+import { initMeetingParticipantModel } from './models/MeetingParticipant';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { rateLimiter } from './middleware/rateLimiter';
@@ -13,6 +15,7 @@ import { rateLimiter } from './middleware/rateLimiter';
 // Import routes
 import authRoutes from './routes/auth';
 import healthRoutes from './routes/health';
+import calendarRoutes from './routes/calendar';
 
 // Load environment variables
 dotenv.config();
@@ -42,6 +45,7 @@ app.use('/api/health', healthRoutes);
 
 // API routes
 app.use('/api/auth', authRoutes);
+app.use('/api/calendar', calendarRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -56,8 +60,21 @@ const startServer = async () => {
     try {
       const sequelize = await connectMySQL();
       // Initialize MySQL models
-      initUserModel(sequelize);
-      console.log('✅ MySQL models initialized');
+      const User = initUserModel(sequelize);
+      const Meeting = initMeetingModel(sequelize);
+      const MeetingParticipant = initMeetingParticipantModel(sequelize);
+      
+      // Set up model associations
+      User.hasMany(Meeting, { foreignKey: 'organizerId', as: 'organizedMeetings' });
+      Meeting.belongsTo(User, { foreignKey: 'organizerId', as: 'organizer' });
+      
+      Meeting.hasMany(MeetingParticipant, { foreignKey: 'meetingId', as: 'participants' });
+      MeetingParticipant.belongsTo(Meeting, { foreignKey: 'meetingId', as: 'meeting' });
+      
+      User.hasMany(MeetingParticipant, { foreignKey: 'userId', as: 'participations' });
+      MeetingParticipant.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+      
+      console.log('✅ MySQL models and associations initialized');
     } catch (mysqlError) {
       console.error('❌ MySQL connection failed:', mysqlError);
       console.error('❌ Server cannot start without database');
@@ -69,12 +86,14 @@ const startServer = async () => {
       console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🔗 API Base URL: http://localhost:${PORT}/api`);
       console.log(`🔍 Health Check: http://localhost:${PORT}/api/health`);
-      console.log(`🔍 API Endpoints: http://localhost:${PORT}/api/auth`);
+      console.log(`🔍 Auth API: http://localhost:${PORT}/api/auth`);
+      console.log(`📅 Calendar API: http://localhost:${PORT}/api/calendar`);
       
       if (process.env.NODE_ENV === 'development') {
         console.log('\n📝 Development Mode:');
         console.log('- MySQL database connected and ready');
-        console.log('- API endpoints available at /api/auth/*');
+        console.log('- Auth endpoints: /api/auth/*');
+        console.log('- Calendar endpoints: /api/calendar/*');
         console.log('- Use MySQL on port 3307');
       }
     });

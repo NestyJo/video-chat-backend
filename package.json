@@ -21,7 +21,9 @@
     "mysql:test": "node scripts/test-mysql.js",
     "test:api": "node scripts/test-mysql.js",
     "test-connection": "node scripts/test-mysql-connection.js",
-    "test-auth": "node scripts/test-auth.js"
+    "test-auth": "node scripts/test-auth.js",
+    "test-calendar": "node scripts/test-calendar.js",
+    "test-agora": "node scripts/test-agora-calendar.js"
   },
   "keywords": [
     "nodejs",
