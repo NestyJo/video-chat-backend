@@ -1,13 +1,6 @@
-import { User, IUser, UserRole } from '../models/User';
+import { User } from '../models/User';
 import { AppError } from '../utils/AppError';
-import { generateToken, TokenPayload } from '../utils/jwt';
-
-/**
- * Helper function to safely get user ID as string
- */
-function getUserId(user: IUser): string {
-  return user._id.toString();
-}
+import { generateToken } from '../utils/jwt';
 
 export interface RegisterUserData {
   username: string;
@@ -31,12 +24,12 @@ export interface UpdateUserData {
 
 export interface AuthResponse {
   user: {
-    id: string;
+    id: number;
     username: string;
     email: string;
     firstName: string;
     lastName: string;
-    role: UserRole;
+    role: string;
     createdAt: Date;
     lastLogin?: Date;
   };
@@ -51,39 +44,36 @@ export class AuthService {
     const { username, email, password, firstName, lastName } = userData;
 
     // Check if user already exists
-    const existingUser = await User.findOne({
-      $or: [{ email }, { username }],
-    });
+    const existingUserByEmail = await User.findByEmail(email);
+    if (existingUserByEmail) {
+      throw new AppError('Email already registered', 400);
+    }
 
-    if (existingUser) {
-      if (existingUser.email === email) {
-        throw new AppError('Email already registered', 400);
-      }
-      if (existingUser.username === username) {
-        throw new AppError('Username already taken', 400);
-      }
+    const existingUserByUsername = await User.findByUsername(username);
+    if (existingUserByUsername) {
+      throw new AppError('Username already taken', 400);
     }
 
     // Create new user
-    const user = new User({
+    const user = await User.create({
       username,
       email,
       password,
       firstName,
       lastName,
+      role: 'user',
+      isActive: true,
     });
-
-    await user.save();
 
     // Generate JWT token
     const token = generateToken({
-      userId: getUserId(user),
+      userId: user.id.toString(),
       email: user.email,
     });
 
     return {
       user: {
-        id: getUserId(user),
+        id: user.id,
         username: user.username,
         email: user.email,
         firstName: user.firstName,
@@ -101,8 +91,8 @@ export class AuthService {
   static async loginUser(loginData: LoginUserData): Promise<AuthResponse> {
     const { email, password } = loginData;
 
-    // Find user by email and include password
-    const user = await User.findOne({ email }).select('+password');
+    // Find user by email
+    const user = await User.findByEmail(email);
 
     if (!user) {
       throw new AppError('Invalid email or password', 401);
@@ -126,13 +116,13 @@ export class AuthService {
 
     // Generate JWT token
     const token = generateToken({
-      userId: getUserId(user),
+      userId: user.id.toString(),
       email: user.email,
     });
 
     return {
       user: {
-        id: getUserId(user),
+        id: user.id,
         username: user.username,
         email: user.email,
         firstName: user.firstName,
@@ -148,8 +138,8 @@ export class AuthService {
   /**
    * Get user profile
    */
-  static async getUserProfile(userId: string): Promise<IUser> {
-    const user = await User.findById(userId);
+  static async getUserProfile(userId: string): Promise<User> {
+    const user = await User.findByPk(parseInt(userId));
 
     if (!user) {
       throw new AppError('User not found', 404);
@@ -164,47 +154,31 @@ export class AuthService {
   static async updateUserProfile(
     userId: string,
     updateData: UpdateUserData
-  ): Promise<IUser> {
+  ): Promise<User> {
     const { username, firstName, lastName, bio } = updateData;
 
-    // Check if username is already taken by another user
-    if (username) {
-      const existingUser = await User.findOne({
-        username,
-        _id: { $ne: userId },
-      });
+    const user = await User.findByPk(parseInt(userId));
 
-      if (existingUser) {
+    if (!user) {
+      throw new AppError('User not found', 404);
+    }
+
+    // Check if username is already taken by another user
+    if (username && username !== user.username) {
+      const existingUser = await User.findByUsername(username);
+      if (existingUser && existingUser.id !== user.id) {
         throw new AppError('Username already taken', 400);
       }
     }
 
     // Update user
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      {
-        ...(username && { username }),
-        ...(firstName && { firstName }),
-        ...(lastName && { lastName }),
-        ...(bio !== undefined && { bio }),
-      },
-      { new: true, runValidators: true }
-    );
+    await user.update({
+      ...(username && { username }),
+      ...(firstName && { firstName }),
+      ...(lastName && { lastName }),
+      ...(bio !== undefined && { bio }),
+    });
 
-    if (!updatedUser) {
-      throw new AppError('User not found', 404);
-    }
-
-    return updatedUser;
-  }
-
-  /**
-   * Verify user token and get user data
-   */
-  static async verifyUserToken(token: string): Promise<IUser> {
-    // This would typically use the JWT utility to verify the token
-    // and then fetch the user from the database
-    // Implementation depends on your JWT verification logic
-    throw new AppError('Method not implemented', 500);
+    return user;
   }
 }

@@ -1,14 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService, RegisterUserData, UpdateUserData } from '../services/authService';
 import { AppError } from '../utils/AppError';
-import { IUser } from '../models/User';
-
-/**
- * Helper function to safely get user ID as string
- */
-function getUserId(user: IUser): string {
-  return user._id.toString();
-}
 
 export const register = async (
   req: Request,
@@ -65,19 +57,19 @@ export const getProfile = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = req.user;
+    const userId = req.user?.id; // Assuming user ID is stored in req.user from auth middleware
     
-    if (!user) {
+    if (!userId) {
       throw new AppError('Authentication required', 401);
     }
     
-    const userProfile = await AuthService.getUserProfile(getUserId(user));
+    const userProfile = await AuthService.getUserProfile(userId.toString());
     
     res.status(200).json({
       success: true,
       data: {
         user: {
-          id: getUserId(userProfile),
+          id: userProfile.id,
           username: userProfile.username,
           email: userProfile.email,
           firstName: userProfile.firstName,
@@ -102,9 +94,9 @@ export const updateProfile = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const user = req.user;
+    const userId = req.user?.id;
     
-    if (!user) {
+    if (!userId) {
       throw new AppError('Authentication required', 401);
     }
     
@@ -116,7 +108,7 @@ export const updateProfile = async (
     };
     
     const updatedUser = await AuthService.updateUserProfile(
-      getUserId(user),
+      userId.toString(),
       updateData
     );
     
@@ -125,7 +117,7 @@ export const updateProfile = async (
       message: 'Profile updated successfully',
       data: {
         user: {
-          id: getUserId(updatedUser),
+          id: updatedUser.id,
           username: updatedUser.username,
           email: updatedUser.email,
           firstName: updatedUser.firstName,

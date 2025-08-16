@@ -4,14 +4,14 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 
-import { connectDatabase } from './config/database';
+import { connectMySQL, getSequelize } from './config/mysql';
+import { initUserModel } from './models/User';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFoundHandler';
 import { rateLimiter } from './middleware/rateLimiter';
 
 // Import routes
 import authRoutes from './routes/auth';
-import userRoutes from './routes/user';
 import healthRoutes from './routes/health';
 
 // Load environment variables
@@ -42,7 +42,6 @@ app.use('/api/health', healthRoutes);
 
 // API routes
 app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -53,18 +52,16 @@ app.use(errorHandler);
 // Start server
 const startServer = async () => {
   try {
-    // Try to connect to database
+    // Connect to MySQL
     try {
-      await connectDatabase();
-    } catch (dbError) {
-      console.warn('⚠️ Database connection failed, but server will continue without database');
-      console.warn('⚠️ Some API endpoints that require database will not work');
-      console.warn('⚠️ Health check endpoint will still be available');
-      
-      if (process.env.NODE_ENV === 'production') {
-        console.error('❌ Database is required in production mode');
-        throw dbError;
-      }
+      const sequelize = await connectMySQL();
+      // Initialize MySQL models
+      initUserModel(sequelize);
+      console.log('✅ MySQL models initialized');
+    } catch (mysqlError) {
+      console.error('❌ MySQL connection failed:', mysqlError);
+      console.error('❌ Server cannot start without database');
+      process.exit(1);
     }
     
     app.listen(PORT, () => {
@@ -72,12 +69,13 @@ const startServer = async () => {
       console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🔗 API Base URL: http://localhost:${PORT}/api`);
       console.log(`🔍 Health Check: http://localhost:${PORT}/api/health`);
+      console.log(`🔍 API Endpoints: http://localhost:${PORT}/api/auth`);
       
       if (process.env.NODE_ENV === 'development') {
         console.log('\n📝 Development Mode:');
-        console.log('- Server will run even without MongoDB');
-        console.log('- Install and start MongoDB to use database features');
-        console.log('- Use Docker: docker run -d -p 27017:27017 mongo:latest');
+        console.log('- MySQL database connected and ready');
+        console.log('- API endpoints available at /api/auth/*');
+        console.log('- Use MySQL on port 3307');
       }
     });
   } catch (error) {

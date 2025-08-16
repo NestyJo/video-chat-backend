@@ -1,23 +1,17 @@
-import { User, IUser, UserRole } from '../models/User';
+import { User } from '../models/User';
 import { AppError } from '../utils/AppError';
-
-/**
- * Helper function to safely get user ID as string
- */
-function getUserId(user: IUser): string {
-  return user._id.toString();
-}
+import { Op } from 'sequelize';
 
 export interface UserQueryParams {
   page?: number;
   limit?: number;
   search?: string;
   sortBy?: string;
-  sortOrder?: 'asc' | 'desc';
+  sortOrder?: 'ASC' | 'DESC';
 }
 
 export interface PaginatedUsers {
-  users: IUser[];
+  users: User[];
   pagination: {
     currentPage: number;
     totalPages: number;
@@ -29,13 +23,13 @@ export interface PaginatedUsers {
 }
 
 export interface UserPublicData {
-  id: string;
+  id: number;
   username: string;
   email: string;
   firstName: string;
   lastName: string;
   bio?: string;
-  role: UserRole;
+  role: string;
   createdAt: Date;
 }
 
@@ -49,40 +43,35 @@ export class UserService {
       limit = 10,
       search,
       sortBy = 'createdAt',
-      sortOrder = 'desc',
+      sortOrder = 'DESC',
     } = queryParams;
 
-    // Build query
-    const query: any = { isActive: true };
+    // Build where clause
+    const whereClause: any = { isActive: true };
 
     if (search) {
-      query.$or = [
-        { username: { $regex: search, $options: 'i' } },
-        { firstName: { $regex: search, $options: 'i' } },
-        { lastName: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
+      whereClause[Op.or] = [
+        { username: { [Op.like]: `%${search}%` } },
+        { firstName: { [Op.like]: `%${search}%` } },
+        { lastName: { [Op.like]: `%${search}%` } },
+        { email: { [Op.like]: `%${search}%` } },
       ];
     }
 
-    // Calculate pagination
-    const skip = (page - 1) * limit;
-
-    // Build sort object
-    const sort: any = {};
-    sort[sortBy] = sortOrder === 'asc' ? 1 : -1;
+    // Calculate offset
+    const offset = (page - 1) * limit;
 
     // Execute query
-    const [users, total] = await Promise.all([
-      User.find(query)
-        .select('-password')
-        .sort(sort)
-        .skip(skip)
-        .limit(limit),
-      User.countDocuments(query),
-    ]);
+    const { count, rows: users } = await User.findAndCountAll({
+      where: whereClause,
+      order: [[sortBy, sortOrder]],
+      limit,
+      offset,
+      attributes: { exclude: ['password'] },
+    });
 
     // Calculate pagination info
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = Math.ceil(count / limit);
     const hasNextPage = page < totalPages;
     const hasPrevPage = page > 1;
 
@@ -91,7 +80,7 @@ export class UserService {
       pagination: {
         currentPage: page,
         totalPages,
-        totalUsers: total,
+        totalUsers: count,
         hasNextPage,
         hasPrevPage,
         limit,
@@ -103,7 +92,9 @@ export class UserService {
    * Get user by ID
    */
   static async getUserById(id: string): Promise<UserPublicData> {
-    const user = await User.findById(id).select('-password');
+    const user = await User.findByPk(parseInt(id), {
+      attributes: { exclude: ['password'] },
+    });
 
     if (!user) {
       throw new AppError('User not found', 404);
@@ -114,7 +105,7 @@ export class UserService {
     }
 
     return {
-      id: getUserId(user),
+      id: user.id,
       username: user.username,
       email: user.email,
       firstName: user.firstName,
@@ -129,7 +120,7 @@ export class UserService {
    * Get user by username
    */
   static async getUserByUsername(username: string): Promise<UserPublicData> {
-    const user = await User.findOne({ username }).select('-password');
+    const user = await User.findByUsername(username);
 
     if (!user) {
       throw new AppError('User not found', 404);
@@ -140,7 +131,7 @@ export class UserService {
     }
 
     return {
-      id: getUserId(user),
+      id: user.id,
       username: user.username,
       email: user.email,
       firstName: user.firstName,
@@ -160,7 +151,7 @@ export class UserService {
       throw new AppError('You cannot deactivate your own account', 400);
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findByPk(parseInt(userId));
 
     if (!user) {
       throw new AppError('User not found', 404);
@@ -170,15 +161,14 @@ export class UserService {
       throw new AppError('User is already deactivated', 400);
     }
 
-    user.isActive = false;
-    await user.save();
+    await user.update({ isActive: false });
   }
 
   /**
    * Activate user account
    */
   static async activateUser(userId: string): Promise<void> {
-    const user = await User.findById(userId);
+    const user = await User.findByPk(parseInt(userId));
 
     if (!user) {
       throw new AppError('User not found', 404);
@@ -188,8 +178,7 @@ export class UserService {
       throw new AppError('User is already active', 400);
     }
 
-    user.isActive = true;
-    await user.save();
+    await user.update({ isActive: true });
   }
 
   /**
@@ -209,11 +198,11 @@ export class UserService {
       adminUsers,
       regularUsers,
     ] = await Promise.all([
-      User.countDocuments(),
-      User.countDocuments({ isActive: true }),
-      User.countDocuments({ isActive: false }),
-      User.countDocuments({ role: 'admin' }),
-      User.countDocuments({ role: 'user' }),
+      User.count(),
+      User.count({ where: { isActive: true } }),
+      User.count({ where: { isActive: false } }),
+      User.count({ where: { role: 'admin' } }),
+      User.count({ where: { role: 'user' } }),
     ]);
 
     return {
@@ -237,26 +226,28 @@ export class UserService {
   ): Promise<UserPublicData[]> {
     const { limit = 10, includeInactive = false } = options;
 
-    const query: any = {
-      $or: [
-        { username: { $regex: searchTerm, $options: 'i' } },
-        { firstName: { $regex: searchTerm, $options: 'i' } },
-        { lastName: { $regex: searchTerm, $options: 'i' } },
-        { email: { $regex: searchTerm, $options: 'i' } },
+    const whereClause: any = {
+      [Op.or]: [
+        { username: { [Op.like]: `%${searchTerm}%` } },
+        { firstName: { [Op.like]: `%${searchTerm}%` } },
+        { lastName: { [Op.like]: `%${searchTerm}%` } },
+        { email: { [Op.like]: `%${searchTerm}%` } },
       ],
     };
 
     if (!includeInactive) {
-      query.isActive = true;
+      whereClause.isActive = true;
     }
 
-    const users = await User.find(query)
-      .select('-password')
-      .limit(limit)
-      .sort({ createdAt: -1 });
+    const users = await User.findAll({
+      where: whereClause,
+      attributes: { exclude: ['password'] },
+      limit,
+      order: [['createdAt', 'DESC']],
+    });
 
     return users.map(user => ({
-      id: getUserId(user),
+      id: user.id,
       username: user.username,
       email: user.email,
       firstName: user.firstName,
@@ -278,17 +269,17 @@ export class UserService {
       throw new AppError('Email or username must be provided', 400);
     }
 
-    const query: any = { $or: [] };
+    const whereClause: any = { [Op.or]: [] };
 
     if (email) {
-      query.$or.push({ email });
+      whereClause[Op.or].push({ email });
     }
 
     if (username) {
-      query.$or.push({ username });
+      whereClause[Op.or].push({ username });
     }
 
-    const existingUser = await User.findOne(query);
+    const existingUser = await User.findOne({ where: whereClause });
 
     if (!existingUser) {
       return { exists: false };

@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../utils/AppError';
-import { User, IUser } from '../models/User';
+import { User } from '../models/User';
 import { verifyToken } from '../utils/jwt';
 
 interface AuthenticatedRequest extends Request {
-  user?: IUser;
+  user?: User;
 }
 
 export const authenticate = async (
@@ -29,7 +29,9 @@ export const authenticate = async (
     const decoded = verifyToken(token);
     
     // Get user from database
-    const user = await User.findById(decoded.userId).select('-password');
+    const user = await User.findByPk(decoded.userId, {
+      attributes: { exclude: ['password'] }
+    });
     
     if (!user) {
       throw new AppError('User not found', 401);
